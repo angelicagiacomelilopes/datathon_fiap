@@ -17,6 +17,7 @@ logs/
 # Unit test / coverage
 .coverage
 .pytest_cache/
+.benchmarks/
 htmlcov/
 coverage.xml
 
