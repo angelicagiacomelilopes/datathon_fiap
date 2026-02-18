@@ -13,55 +13,59 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 import joblib
 
-# Adiciona raiz do projeto ao path
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.append(str(PROJECT_ROOT))
+# Setup paths
+ROOT_DIR = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT_DIR))
 
 try:
     from src.utils import LoggerConfig, ApplicationLogger
+    HAS_LOGGER = True
 except ImportError:
-    LoggerConfig = None
-    ApplicationLogger = None
+    HAS_LOGGER = False
 
 class LeituraArquivos:
-    def __init__(self, name="LeituraArquivos", caminho="data/", aba=""):
+    def __init__(self, caminho, aba=""):
         self.caminho = caminho
         self.aba = aba
-        self._setup_logger(name)
+        self._setup_logger()
 
-    def _setup_logger(self, name):
-        if ApplicationLogger:
+    def _setup_logger(self):
+        if HAS_LOGGER:
             try:
-                config = LoggerConfig(app_name=name, log_dir=f"logs/{name.lower()}")
+                # Usa nome genérico para logs de leitura
+                config = LoggerConfig(app_name="DataLoading", log_dir="logs/leitura")
                 self.logger = ApplicationLogger(self.__class__.__name__, config).logger
                 return
             except Exception:
                 pass
         
-        # Fallback simples
-        self.logger = logging.getLogger(name)
+        self.logger = logging.getLogger(self.__class__.__name__)
         if not self.logger.handlers:
             logging.basicConfig(level=logging.INFO)
 
     def ler_arquivo(self) -> pd.DataFrame:
         if not os.path.exists(self.caminho):
-            self.logger.error(f"Arquivo não encontrado: {self.caminho}") 
-            raise FileNotFoundError(f"Arquivo não encontrado: {self.caminho}")
+            self.logger.error(f"Arquivo não existente: {self.caminho}") 
+            raise FileNotFoundError(f"Arquivo não existente: {self.caminho}")
 
-        if hasattr(self.logger, 'log_method_call'):
-             self.logger.log_method_call("ler_arquivo", caminho=self.caminho, aba=self.aba)
-        else:
-             self.logger.info(f"Lendo: {self.caminho} / {self.aba}")
+        try:
+            if self.caminho.endswith('.xlsx'):
+                df = pd.read_excel(self.caminho, sheet_name=self.aba, engine="openpyxl")
+                # Adiciona coluna de ano automaticamente se possível
+                if "PEDE" in self.aba:
+                    df['ano_referencia'] = self.aba.replace("PEDE", "")
+            elif self.caminho.endswith('.csv'):
+                df = pd.read_csv(self.caminho)
+            else:
+                self.logger.error("Formato inválido")
+                return None
+                
+            self.logger.info(f"Leitura: {self.aba} ({len(df)} rows)")
+            return df
 
-        if self.caminho.endswith('.xlsx'):
-            df = pd.read_excel(self.caminho, sheet_name=self.aba, engine="openpyxl")
-            df['ano_referencia'] = self.aba.replace("PEDE", "")
-        else:
-            self.logger.error("Formato inválido")
-            raise ValueError("Formato inválido. Use .xlsx ou .csv")
-
-        self.logger.info(f"Dados carregados. Shape: {df.shape}")
-        return df
+        except Exception as e:
+            self.logger.error(f"Erro leitura: {e}")
+            return None
 
  
 class TratamentoDados:
@@ -198,27 +202,25 @@ class TratamentoDados:
         'ano_referencia': str
     }
 
-    def __init__(self, df: pd.DataFrame, name: str = "TratamentoDados", ano: str = ""):
+    def __init__(self, df: pd.DataFrame, ano: str = ""):
         self.df = df
         self.ano = ano
-        self._setup_logger(name)
+        self._setup_logger()
         
-    def _setup_logger(self, name):
-        if ApplicationLogger:
+    def _setup_logger(self):
+        if HAS_LOGGER:
             try:
-                config = LoggerConfig(app_name=name, log_dir=f"logs/{name.lower()}")
+                config = LoggerConfig(app_name="DataProcessing", log_dir="logs/tratamento")
                 self.logger = ApplicationLogger(self.__class__.__name__, config).logger
                 return
             except Exception:
                 pass
         
-        self.logger = logging.getLogger(name)
+        self.logger = logging.getLogger(self.__class__.__name__)
         if not self.logger.handlers:
             logging.basicConfig(level=logging.INFO)
 
     def executar_tratamento(self) -> pd.DataFrame:
-        self.logger.info("Executando pipeline.")
-        
         self._remover_colunas_duplicadas()
         self._padronizar_colunas()
         self._converter_decimal_ptbr()
@@ -226,16 +228,13 @@ class TratamentoDados:
         self._converter_tipos()
         self._tratar_campo_parametrizado(['idade', 'genero'])
         self._ordenar_colunas()
-
+        
+        self.logger.info(f"Tratamento concluído para {self.ano}")
         return self.df
  
     def _remover_colunas_duplicadas(self):
-        """
-        Remove colunas duplicadas de um DataFrame.
-        """
         # Identifica colunas duplicadas (pelo nome original ou pandas sufixos)
         self.df = self.df.loc[:, ~self.df.columns.duplicated()]
-        self.logger.info(f"Colunas após remoção de duplicatas exatas: {self.df.shape[1]}")
 
         seen = set()
         cols_to_drop = []
@@ -248,24 +247,17 @@ class TratamentoDados:
                 try:
                     if self.df[nome_base].equals(self.df[col]):
                         cols_to_drop.append(col)
-                        self.logger.info(f"Coluna duplicada removida: {col} (cópia idêntica de {nome_base})")
-                    else:
-                        self.logger.warning(f"Aviso: Coluna {col} tem nome similar a {nome_base} mas conteúdo diferente. Mantida.")
                 except KeyError:
-                     self.logger.warning(f"Erro ao comparar colunas {nome_base} e {col}.")
+                     pass
 
             else:
                 seen.add(nome_base)
                 
         if cols_to_drop:
-            self.logger.info(f"Removendo {len(cols_to_drop)} colunas duplicadas: {cols_to_drop}")
+            self.logger.info(f"Removendo duplicadas: {cols_to_drop}")
             self.df = self.df.drop(columns=cols_to_drop)
 
     def _padronizar_colunas(self):
-        """
-        Renomeia colunas do DF baseado no mapping definido na classe.
-        """
-        self.logger.info("Iniciando padronização de colunas com base no dicionário de mapeamento.")
         col_map = {}
         
         for padrao, variacoes in self.DICTIONARY_MAPPING['columns'].items():
@@ -276,13 +268,8 @@ class TratamentoDados:
         if col_map:
             self.df = self.df.rename(columns=col_map)
             self.logger.info(f"{len(col_map)} colunas renomeadas.")
-        else:
-            self.logger.info("Nenhuma coluna precisou ser renomeada.")
 
     def _converter_valor_decimal(self, valor):
-        """
-        Função auxiliar para converter valor individual.
-        """
         if pd.isna(valor) or valor == '' or str(valor).strip() == '#N/A':
             return np.nan
             
@@ -297,36 +284,20 @@ class TratamentoDados:
             return np.nan
 
     def _converter_decimal_ptbr(self):
-        """
-        Converte strings numéricas no formato PT-BR (1.000,00) para float Python.
-        """
-        self.logger.info("Iniciando conversão de colunas decimais no formato PT-BR.")
-        
         cols_presentes = [col for col in self.COLUNAS_DECIMAIS if col in self.df.columns]
         
         if not cols_presentes:
-            self.logger.info("Nenhuma coluna decimal encontrada para conversão.")
             return
 
-        self.logger.info(f"Convertendo {len(cols_presentes)} colunas: {cols_presentes}")
-        
         for col in cols_presentes:
             self.df[col] = self.df[col].apply(self._converter_valor_decimal)
        
     def _converter_colunas_data(self):
-        """
-        Converte colunas de data para o formato datetime do pandas.
-        """
-        self.logger.info("Iniciando conversão de colunas de data.")
-        
         cols_presentes = [col for col in self.COLUNAS_DATA if col in self.df.columns]
         
         if not cols_presentes:
-            self.logger.info("Nenhuma coluna de data encontrada para conversão.")
             return
 
-        self.logger.info(f"Convertendo {len(cols_presentes)} colunas: {cols_presentes}")
-        
         for col in cols_presentes:
             original_values = self.df[col].copy()
             
@@ -339,7 +310,7 @@ class TratamentoDados:
             
             items_failed = mask_failed.sum()
             if items_failed > 0:
-                self.logger.warning(f"Coluna '{col}': {items_failed} valores falharam na conversão BR (dia/mês). Tentando formato US (mês/dia).")
+                self.logger.warning(f"Coluna '{col}': {items_failed} falhas na conv. BR -> tentando US.")
                 
                 try:
                     dates_us = pd.to_datetime(original_values[mask_failed], errors='coerce', dayfirst=False, format='mixed')
@@ -353,74 +324,46 @@ class TratamentoDados:
         return self.df
 
     def _converter_tipos(self):
-        """
-        Converte colunas para os tipos definidos no SCHEMA_DTYPES.
-        """
-        self.logger.info("Iniciando conversão de tipos de colunas com base no schema definido.")
-        
         for col, dtype in self.SCHEMA_DTYPES.items():
             if col in self.df.columns:
                 try:
                     self.df[col] = self.df[col].astype(dtype)
                 except Exception as e:
-                    self.logger.error(f"Erro ao converter coluna '{col}' para {dtype}: {e}")
+                    self.logger.error(f"Erro ao converter '{col}' para {dtype}: {e}")
             else:
-                self.logger.info(f"Coluna '{col}' não encontrada para conversão de tipo.")
-                
-                # Tenta tratar/calcular campo calculado
                 self._tratar_campo_criado_parametrizado(col)
                 
                 # Se a coluna ainda não existir após a tentativa de tratamento, cria com NaN
                 if col not in self.df.columns:
-                    self.logger.info(f"Coluna não calculada, criada com valor NaN: '{col}'")
                     self.df[col] = np.nan
 
-        self.logger.info("Conversão de tipos concluída.")
-
     def _tratar_campo_criado_parametrizado(self, campo: str):
-        """
-        Método para tratar/calcular campos específicos que não vieram no arquivo original.
-        """
         if campo == 'ano_nasc' and 'data_nascimento' in self.df.columns:
             if self.df['data_nascimento'].notna().any():
-                self.logger.info(f"Calculando '{campo}' a partir de 'data_nascimento'")
                 if pd.api.types.is_datetime64_any_dtype(self.df['data_nascimento']):
                     self.df[campo] = self.df['data_nascimento'].dt.year
                 else:
                     self.df[campo] = pd.to_datetime(self.df['data_nascimento'], errors='coerce').dt.year
-            else:
-                self.logger.warning(f"Campo 'data_nascimento' vazio. '{campo}' será NaN.")
 
         elif campo == 'data_nascimento' and 'ano_nasc' in self.df.columns:
             if self.df['ano_nasc'].notna().any():
-                self.logger.info(f"Calculando '{campo}' a partir de 'ano_nasc'")
                 self.df[campo] = self.df['ano_nasc'].apply(
                     lambda x: pd.to_datetime(f"{int(float(x))}-01-01", errors='coerce') if pd.notna(x) else pd.NaT
                 )
-            else:
-                self.logger.warning(f"Campo 'ano_nasc' vazio. '{campo}' será NaN.")
 
     def _ordenar_colunas(self):
-        """
-        Ordena as colunas do DataFrame em ordem alfabética.
-        """
-        self.logger.info("Ordenando colunas em ordem alfabética.")
         self.df = self.df.reindex(sorted(self.df.columns), axis=1)
 
     def _tratar_campo_parametrizado(self, campo_lista: list):
         for campo in campo_lista:
             if campo == 'idade':
                 if 'ano_nasc' in self.df.columns and self.df['ano_nasc'].notna().any():
-                    self.logger.info("Calculando 'idade' a partir de 'ano_nasc'")
                     ano_ref = pd.to_numeric(self.df['ano_referencia'], errors='coerce')
                     ano_nasc = pd.to_numeric(self.df['ano_nasc'], errors='coerce')
                     self.df['idade'] = ano_ref - ano_nasc
-                else:
-                    self.logger.warning("Campos 'ano_nasc' e 'data_nascimento' vazios. 'idade' será NaN.")
 
             if campo == 'genero':
                 if 'genero' in self.df.columns:
-                    self.logger.info("Padronizando campo 'genero'")
                     self.df['genero'] = self.df['genero'].str.strip().str.lower()
                     self.df['genero'] = self.df['genero'].replace({
                         'masculino': 'Masculino',
@@ -428,11 +371,8 @@ class TratamentoDados:
                         'menino': 'Masculino',
                         'menina': 'Feminino'
                     })
-                else:
-                    self.logger.warning("Campo 'genero' não encontrado para padronização.")
 
             if campo in ['pedra_2024', 'pedra_2023', 'pedra_23', 'pedra_22', 'pedra_21', 'pedra_20']:
-                self.logger.info(f"Padronizando campo '{campo}")
                 self.df[campo] = self.df[campo].str.strip().str.lower()
                 self.df[campo] = self.df[campo].replace('á','a').replace('#DIV/0!', np.nan).replace('#N/A', np.nan)
 
@@ -549,27 +489,24 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 if __name__ == "__main__":
-    # Setup básicos
     PROJECT_ROOT = Path(__file__).resolve().parent.parent
     DATA_DIR = PROJECT_ROOT / "arquivos"
     OUTPUT_DIR = PROJECT_ROOT / "src" / "arquivo_tratado"
     LOGS_DIR = PROJECT_ROOT / "src" / "logs" / "tratamentodados"
 
-    # Configuração do Logger
-    logger = logging.getLogger("Pipeline")
-    if ApplicationLogger:
+    # Logger
+    if HAS_LOGGER:
         try:
-            config = LoggerConfig(app_name="Pipeline", log_dir=str(LOGS_DIR))
-            # Define o nome da ação/contexto principal
-            logger = ApplicationLogger("Orquestrador", config).logger
-        except Exception:
+            config = LoggerConfig(app_name="DataPipeline", log_dir=str(LOGS_DIR))
+            logger = ApplicationLogger("Main", config).logger
+        except:
+            logger = logging.getLogger("Main")
             logging.basicConfig(level=logging.INFO)
     else:
+        logger = logging.getLogger("Main")
         logging.basicConfig(level=logging.INFO)
 
     FILE_PATH = DATA_DIR / "BASE DE DADOS PEDE 2024 - DATATHON.xlsx"
-    
-    logger.info(f"Arquivo alvo: {FILE_PATH}")
     
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -578,33 +515,25 @@ if __name__ == "__main__":
 
     for ano in ["2022", "2023", "2024"]:
         aba = f"PEDE{ano}"
-        logger.info(f"--- {ano} ({aba}) ---")
         
         try:
             leitura = LeituraArquivos(caminho=str(FILE_PATH), aba=aba)
             df_raw = leitura.ler_arquivo()
             
             if df_raw is not None:
-                tratamento = TratamentoDados(df_raw, name=f"TratamentoDados_{ano}", ano=ano)
+                tratamento = TratamentoDados(df_raw, ano=ano)
                 df_tratado = tratamento.executar_tratamento()
                 
-                # Snapshot para debug
-                df_tratado.to_csv(LOGS_DIR / f"df_tratado_{ano}.csv", index=False)
-                
-                # Resultado final do ano
                 out_path = OUTPUT_DIR / f"df_tratado_{ano}.csv"
                 df_tratado.to_csv(out_path, index=False)
-                logger.info(f"Salvo: {out_path.name}")
+                logger.info(f"Processado {ano}: {out_path.name}")
                 
                 processed_dfs.append(df_tratado)
                 
         except Exception as e:
-            logger.error(f"Erro em {ano}: {e}")
-            # Em prod removeria print_exc
-            traceback.print_exc()
+            logger.error(f"Falha em {ano}: {e}")
 
     if processed_dfs:
-        logger.info("--- Unificação ---")
         try:
             df_concatenado = pd.concat(processed_dfs, ignore_index=True)
             
@@ -613,22 +542,19 @@ if __name__ == "__main__":
 
             final_path = OUTPUT_DIR / "df_features_final.csv"
             df_final.to_csv(final_path, index=False)
-            logger.info(f"Dataset final gerado: {final_path}")
+            logger.info(f"Features geradas: {final_path.name}")
 
-            # Preparação para ML (Preenchimento de Nulos + Encoding)
-            logger.info("--- Preparação para ML ---")
+            # Machine Learning Prep
             preprocessor = DataPreprocessor()
-            
-            # Ajusta e transforma os dados (imputação + scaling + one-hot encoding)
             df_model_ready = preprocessor.fit_transform(df_final)
             
             ml_path = OUTPUT_DIR / "df_model_ready.csv"
             df_model_ready.to_csv(ml_path, index=False)
-            logger.info(f"Dataset pronto para ML salvo: {ml_path.name}")
+            logger.info(f"Arquivo ML pronto: {ml_path.name}")
             
         except Exception as e:
-            logger.error(f"Erro na unificação: {e}")
+            logger.error(f"Erro final: {e}")
     else:
-        logger.warning("Pipeline finalizado sem dados.")
+        logger.warning("Nenhum dado processado.")
 
 
