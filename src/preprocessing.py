@@ -1,4 +1,3 @@
-
 import sys
 import os
 import logging
@@ -13,7 +12,6 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 import joblib
 
-# Setup paths
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT_DIR))
 
@@ -32,7 +30,6 @@ class LeituraArquivos:
     def _setup_logger(self):
         if HAS_LOGGER:
             try:
-                # Usa nome genérico para logs de leitura
                 config = LoggerConfig(app_name="DataLoading", log_dir="logs/leitura")
                 self.logger = ApplicationLogger(self.__class__.__name__, config).logger
                 return
@@ -51,7 +48,6 @@ class LeituraArquivos:
         try:
             if self.caminho.endswith('.xlsx'):
                 df = pd.read_excel(self.caminho, sheet_name=self.aba, engine="openpyxl")
-                # Adiciona coluna de ano automaticamente se possível
                 if "PEDE" in self.aba:
                     df['ano_referencia'] = self.aba.replace("PEDE", "")
             elif self.caminho.endswith('.csv'):

@@ -7,7 +7,6 @@ import pandas as pd
 
 
 class LoggerConfig:
-    """Classe para configuração do logger da aplicação"""
     
     def __init__(self, 
                  app_name: str = "App",
@@ -15,36 +14,23 @@ class LoggerConfig:
                  console_level: str = "INFO",
                  file_level: str = "DEBUG",
                  error_level: str = "ERROR"):
-        """
-        Inicializa a configuração do logger
-        
-        Args:
-            app_name: Nome da aplicação para identificação nos logs
-            log_dir: Diretório onde os logs serão salvos
-            console_level: Nível de log para console
-            file_level: Nível de log para arquivo geral
-            error_level: Nível de log para arquivo de erros
-        """
         self.app_name = app_name
         self.log_dir = Path(log_dir)
         self.console_level = console_level
         self.file_level = file_level
         self.error_level = error_level
         
-        # Cria o diretório de logs se não existir
         self.log_dir.mkdir(parents=True, exist_ok=True)
         
     def _get_console_format(self) -> str:
-        """Retorna o formato para logs no console"""
         return (
             "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
             "<level>{level: <8}</level> | "
-            f"<cyan>{self.app_name}</cyan>:<cyan>{{name}}</cyan>:<cyan>{{function}}</cyan>:<cyan>{{line}}</cyan> | "
+            f"<cyan>{self.app_name}</cyan>:<cyan>{{extra[class_name]}}</cyan> | "
             "<level>{message}</level>"
-        )
+        ).replace("{extra[class_name]}", "{extra[class_name]: <15}")
     
     def _get_file_format(self) -> str:
-        """Retorna o formato para logs em arquivo"""
         return (
             "{time:YYYY-MM-DD HH:mm:ss} | "
             "{level} | "
@@ -54,6 +40,9 @@ class LoggerConfig:
     
     def setup(self) -> None:
         """Configura os handlers do logger"""
+        # Define valor padrão para class_name se não existir
+        logger.configure(extra={"class_name": "Main"})
+        
         # Remove handlers existentes
         logger.remove()
         
@@ -125,6 +114,8 @@ class LoggerConfig:
 class ApplicationLogger:
     """Logger específico para aplicação com contexto"""
     
+    _initialized = False
+
     def __init__(self, class_name: str, config: Optional[LoggerConfig] = None):
         """
         Inicializa o logger da aplicação
@@ -134,10 +125,10 @@ class ApplicationLogger:
             config: Configuração do logger (opcional)
         """
         self.class_name = class_name
-        self.config = config or LoggerConfig()
         
-        if not logger._core.handlers:
-            self.config.setup()
+        if config and not ApplicationLogger._initialized:
+            config.setup()
+            ApplicationLogger._initialized = True
         
         # Cria um logger com contexto
         self._logger = logger.bind(class_name=class_name)
@@ -222,5 +213,30 @@ class SistemaMonitoramento:
                 )
             
             self.logger.logger.info(f"Monitoramento do processo {processo_id} concluído")
+
+def load_data(file_path: str) -> pd.DataFrame:
+    """Carrega dados de arquivo Excel ou CSV"""
+    if file_path.endswith('.xlsx'):
+        return pd.read_excel(file_path)
+    elif file_path.endswith('.csv'):
+        return pd.read_csv(file_path)
+    else:
+        raise ValueError("Formato de arquivo não suportado. Use .xlsx ou .csv")
+
+def save_model(model: Any, filepath: str):
+    """Salva o modelo em disco usando joblib"""
+    import joblib
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    joblib.dump(model, filepath)
+    logger.info(f"Modelo salvo em {filepath}")
+
+def load_model(filepath: str) -> Any:
+    """Carrega o modelo do disco usando joblib"""
+    import joblib
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Modelo não encontrado em: {filepath}")
+    model = joblib.load(filepath)
+    logger.info(f"Modelo carregado de {filepath}")
+    return model
 
  
