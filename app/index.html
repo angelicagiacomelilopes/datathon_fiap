@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passos Mágicos - Predição de Evasão</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group.full {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="number"],
+        input[type="text"],
+        select {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        input[type="number"]:focus,
+        input[type="text"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-submit {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-reset {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-reset:hover {
+            background: #e0e0e0;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid #f0f0f0;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result {
+            display: none;
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+
+        .result.success {
+            background: #f0f8ff;
+            border-left-color: #4CAF50;
+        }
+
+        .result.warning {
+            background: #fffce6;
+            border-left-color: #ff9800;
+        }
+
+        .result.danger {
+            background: #ffe6e6;
+            border-left-color: #f44336;
+        }
+
+        .result.error {
+            background: #ffe6e6;
+            border-left-color: #f44336;
+        }
+
+        .result-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .result-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .result-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .result-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .result-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .risk-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            width: fit-content;
+        }
+
+        .risk-low {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+
+        .risk-medium {
+            background: #fff9c4;
+            color: #f57f17;
+        }
+
+        .risk-high {
+            background: #ffcccc;
+            color: #c62828;
+        }
+
+        .message {
+            grid-column: 1 / -1;
+            padding-top: 15px;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            font-style: italic;
+            color: #666;
+            font-size: 13px;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .info-box p {
+            color: #1565c0;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 600px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .result-content {
+                grid-template-columns: 1fr;
+            }
+
+            .container {
+                padding: 30px 20px;
+            }
+
+            .header h1 {
+                font-size: 22px;
+            }
+        }
+
+        .error-message {
+            color: #f44336;
+            font-size: 13px;
+            margin-top: 5px;
+        }
+
+        .input-group-helptext {
+            color: #999;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 Passos Mágicos</h1>
+            <p>Sistema de Predição de Risco de Evasão Escolar</p>
+        </div>
+
+        <div class="info-box">
+            <p>✅ Preencha os dados do aluno abaixo para obter uma predição de risco de evasão baseada em machine learning.</p>
+        </div>
+
+        <form id="predictionForm">
+            <div class="form-grid">
+                <!-- Linha 1: Informações Básicas -->
+                <div class="form-group">
+                    <label for="idade">Idade</label>
+                    <input type="number" id="idade" name="idade" min="10" max="30" value="15" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="fase">Fase</label>
+                    <select id="fase" name="fase" required>
+                        <option value="">Selecione...</option>
+                        <option value="5">5º Ano</option>
+                        <option value="6">6º Ano</option>
+                        <option value="7" selected>7º Ano</option>
+                        <option value="8">8º Ano</option>
+                        <option value="9">9º Ano</option>
+                    </select>
+                </div>
+
+                <!-- Indicadores de Engagement -->
+                <div class="form-group">
+                    <label for="ieg">IEG (Envolvimento Gestalt)</label>
+                    <input type="number" id="ieg" name="ieg" min="-10" max="10" step="0.1" value="8.5" required>
+                    <span class="input-group-helptext">-10 a 10</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="ida">IDA (Dedicação Académica)</label>
+                    <input type="number" id="ida" name="ida" min="-10" max="10" step="0.1" value="8.0" required>
+                    <span class="input-group-helptext">-10 a 10</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="ian">IAN (Afinidade com Números)</label>
+                    <input type="number" id="ian" name="ian" min="-10" max="10" step="0.1" value="7.5" required>
+                    <span class="input-group-helptext">0-10</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="ipp">IPP (Participação Presencial)</label>
+                    <input type="number" id="ipp" name="ipp" min="-10" max="10" step="0.1" value="8.2" required>
+                    <span class="input-group-helptext">0-10</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="ips">IPS (Participação Social)</label>
+                    <input type="number" id="ips" name="ips" min="-10" max="10" step="0.1" value="7.8" required>
+                    <span class="input-group-helptext">0-10</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="ipv">IPV (Presença Virtual)</label>
+                    <input type="number" id="ipv" name="ipv" min="-10" max="10" step="0.1" value="8.3" required>
+                    <span class="input-group-helptext">0-10</span>
+                </div>
+
+                <!-- Informações Categóricas -->
+                <div class="form-group">
+                    <label for="pedra">Pedra (Tipo)</label>
+                    <select id="pedra" name="pedra" required>
+                        <option value="">Selecione...</option>
+                        <option value="Ametista" selected>Ametista</option>
+                        <option value="Quartzo" selected>Quartzo</option>
+                        <option value="Ágata">Ágata</option>
+                        <option value="Cristal">Cristal</option>
+                        <option value="Rubi">Rubi</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="ponto_virada">Ponto de Virada</label>
+                    <select id="ponto_virada" name="ponto_virada" required>
+                        <option value="">Selecione...</option>
+                        <option value="Sim" selected>Sim</option>
+                        <option value="Não">Não</option>
+                    </select>
+                </div>
+
+                <!-- Histórico -->
+                <div class="form-group">
+                    <label for="ieg_anterior">IEG Anterior</label>
+                    <input type="number" id="ieg_anterior" name="ieg_anterior" min="-10" max="10" step="0.1" value="8.0" required>
+                    <span class="input-group-helptext">Período anterior</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="ida_anterior">IDA Anterior</label>
+                    <input type="number" id="ida_anterior" name="ida_anterior" min="-10" max="10" step="0.1" value="7.8" required>
+                    <span class="input-group-helptext">Período anterior</span>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button type="submit" class="btn-submit">🔮 Fazer Predição</button>
+                <button type="reset" class="btn-reset">Limpar</button>
+            </div>
+        </form>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Analisando dados...</p>
+        </div>
+
+        <div class="result" id="result"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById('predictionForm');
+        const loading = document.getElementById('loading');
+        const resultDiv = document.getElementById('result');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Collect form data
+            const formData = new FormData(form);
+            const data = {
+                idade: parseInt(formData.get('idade')),
+                fase: formData.get('fase'),
+                ieg: parseFloat(formData.get('ieg')),
+                ida: parseFloat(formData.get('ida')),
+                ian: parseFloat(formData.get('ian')),
+                ipp: parseFloat(formData.get('ipp')),
+                ips: parseFloat(formData.get('ips')),
+                ipv: parseFloat(formData.get('ipv')),
+                pedra: formData.get('pedra'),
+                ponto_virada: formData.get('ponto_virada'),
+                ieg_anterior: parseFloat(formData.get('ieg_anterior')),
+                ida_anterior: parseFloat(formData.get('ida_anterior'))
+            };
+
+            // Show loading
+            loading.style.display = 'block';
+            resultDiv.style.display = 'none';
+
+            try {
+                // Send request
+                const response = await fetch('http://127.0.0.1:8002/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+
+                // Process result
+                let riskClass = 'warning';
+                let riskBadgeClass = 'risk-medium';
+
+                if (result.risk_classification === 'Baixo') {
+                    riskClass = 'success';
+                    riskBadgeClass = 'risk-low';
+                } else if (result.risk_classification === 'Alto') {
+                    riskClass = 'danger';
+                    riskBadgeClass = 'risk-high';
+                }
+
+                // Format probability as percentage
+                const probabilityPct = (result.risk_probability * 100).toFixed(1);
+
+                // Display result
+                resultDiv.className = `result ${riskClass}`;
+                resultDiv.innerHTML = `
+                    <div class="result-title">📊 Resultado da Predição</div>
+                    <div class="result-content">
+                        <div class="result-item">
+                            <span class="result-label">Classificação de Risco</span>
+                            <span class="result-value">
+                                <span class="risk-badge ${riskBadgeClass}">
+                                    ${result.risk_classification}
+                                </span>
+                            </span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Probabilidade de Evasão</span>
+                            <span class="result-value">${probabilityPct}%</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Predição (Código)</span>
+                            <span class="result-value">${result.prediction === 0 ? '✅ Sem Risco' : '⚠️ Com Risco'}</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Status</span>
+                            <span class="result-value">${result.status}</span>
+                        </div>
+                        <div class="result-item message">
+                            ${result.message}
+                        </div>
+                    </div>
+                `;
+                resultDiv.style.display = 'block';
+
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <div class="result-title">❌ Erro na Predição</div>
+                    <div class="result-content">
+                        <p style="grid-column: 1 / -1; color: #c62828;">
+                            ${error.message}<br>
+                            <small style="color: #999; margin-top: 10px; display: block;">
+                                Certifique-se de que a API está rodando em http://127.0.0.1:8002
+                            </small>
+                        </p>
+                    </div>
+                `;
+                resultDiv.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

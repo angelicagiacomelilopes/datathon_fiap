@@ -389,7 +389,8 @@ class DataPreprocessor(BaseEstimator, TransformerMixin):
 
         numeric_transformer = Pipeline(steps=[
             ('imputer', SimpleImputer(strategy='median')),
-            ('scaler', StandardScaler())
+            # StandardScaler removido pois Random Forest não exige normalização
+            # ('scaler', StandardScaler()) 
         ])
 
         categorical_transformer = Pipeline(steps=[
@@ -433,7 +434,7 @@ class DataPreprocessor(BaseEstimator, TransformerMixin):
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     """
     Realiza limpeza básica dos dados antes do processamento.
-    Remove colunas irrelevantes como nomes e IDs.
+    Remove colunas irrelevantes e corrige valores inválidos.
     """
     df = df.copy()
     
@@ -442,6 +443,16 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
         'nome_anonimizado', 'ra', 'data_nascimento'
     ]
     df = df.drop(columns=[c for c in cols_to_drop if c in df.columns], errors='ignore')
+    
+    # Correct specific columns with bad values
+    if 'idade' in df.columns:
+        # Force conversion to numeric, coercing errors (like dates '1/7/1900') to NaN
+        df['idade'] = pd.to_numeric(df['idade'], errors='coerce')
+
+    if 'fase' in df.columns:
+        # Force conversion to numeric, coercing errors (like 'ALFA') to NaN
+        df['fase'] = pd.to_numeric(df['fase'], errors='coerce')
+        
     return df
 
 
@@ -473,14 +484,43 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
             if df[col].dtype == 'object':
                 df[col] = df[col].astype(str).apply(lambda x: 1 if x.strip().lower() in ['sim', 'true', '1', 's'] else 0)
 
-    # Tratamento de Pedras (Label Encoding manual)
-    pedra_map = {'quartzo': 1, 'ágata': 2, 'agata': 2, 'ametista': 3, 'topázio': 4, 'topazio': 4}
+    # 1. Preencher Notas Numéricas com a Mediana (conforme solicitado)
+    colunas_numericas = df.select_dtypes(include=['float64', 'int64']).columns
+    # Evitar preencher colunas alvo ou ids se houverem, mas aqui pegamos todas numéricas
+    # Usando fillna com a mediana da coluna
+    for col in colunas_numericas:
+        if df[col].isnull().any():
+            median_val = df[col].median()
+            df[col] = df[col].fillna(median_val)
+
+    # 2. Transformar Gênero em Binário (0 e 1)
+    # Procura colunas de gênero (normalmente 'genero' após tratamento)
+    col_genero = [c for c in df.columns if 'genero' in c.lower() or 'gênero' in c.lower()]
+    for col in col_genero:
+        if df[col].dtype == 'object':
+            # Mapeamento para Masculino: 0, Feminino: 1 (Menino/Menina)
+            # Normaliza para lower first
+            df[f'{col}_NUM'] = df[col].astype(str).str.lower().map({
+                'masculino': 0, 'feminino': 1, 
+                'menino': 0, 'menina': 1,
+                'm': 0, 'f': 1
+            }).fillna(0) # Preenchimento padrão 0
+
+    # 3. Tratamento de Pedras (Ordinal Encoding 0-3)
+    # Quartzo: 0, Ágata: 1, Ametista: 2, Topázio: 3
+    pedra_map = {'quartzo': 0, 'ágata': 1, 'agata': 1, 'ametista': 2, 'topázio': 3, 'topazio': 3}
+    
     for col in df.columns:
-        if 'pedra' in col.lower():
-            # Cria coluna numérica se não existir ou substitui
-            # Assegura que está lower para o map
+        if 'pedra' in col.lower() and 'num' not in col.lower():
+            # Preenche nulos com a moda antes de mapear
+            if df[col].isnull().any():
+                moda = df[col].mode()
+                if not moda.empty:
+                    df[col] = df[col].fillna(moda[0])
+            
+            # Cria coluna numérica
             if df[col].dtype == 'object':
-                df[f'{col}_NUM'] = df[col].str.lower().map(pedra_map).fillna(0)
+                df[f'{col}_NUM'] = df[col].astype(str).str.lower().map(pedra_map).fillna(0) # Default 0 (Quartzo) se não encontrar
     
     return df
 
