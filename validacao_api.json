@@ -1,0 +1,276 @@
+{
+  "validacao_api": {
+    "descricao": "Exemplos JSON para validacao na API de predicao de risco de evasao",
+    "data": "2026-02-18",
+    "endpoints": {
+      "health": "GET /health",
+      "predict": "POST /predict",
+      "info": "GET /info"
+    },
+    "testes": {
+      "teste_1_alto_risco": {
+        "descricao": "Aluno com ALTO risco de evasao (74.34% probabilidade)",
+        "metodo": "POST",
+        "endpoint": "/predict",
+        "json_enviado": {
+          "idade": 18,
+          "fase": "EF",
+          "ieg": 0.5,
+          "ida": 0.5,
+          "ian": -0.9,
+          "ipp": -0.0,
+          "ips": 0.6,
+          "ipv": 1.2,
+          "pedra": "Ametista",
+          "ponto_virada": "Sim",
+          "ieg_anterior": 0.4,
+          "ida_anterior": -0.2
+        },
+        "caracteristicas": {
+          "IAN": "MUITO BAIXO (-0.9) - Problemas com numeros",
+          "IPP": "ZERO - Nao comparece presencialmente",
+          "IPV": "MUITO ALTO (1.2) - Destaca negativamente",
+          "note": "Combinacao classica de risco alto"
+        },
+        "resposta_esperada": {
+          "status": "OK",
+          "risk_probability": "~0.74 (74%)",
+          "risk_classification": "Alto",
+          "prediction": 1,
+          "message": "Aluno com risco alto de evasao"
+        },
+        "resultado_obtido": {
+          "status": "OK",
+          "risk_probability": 0.7433516571574833,
+          "risk_classification": "Alto",
+          "prediction": 1,
+          "message": "Aluno com risco alto de evasao"
+        },
+        "validacao": "✅ PASSOU"
+      },
+      "teste_2_baixo_risco": {
+        "descricao": "Aluno com BAIXO risco de evasao (0.5% probabilidade)",
+        "metodo": "POST",
+        "endpoint": "/predict",
+        "json_enviado": {
+          "idade": 18,
+          "fase": "EM",
+          "ieg": 0.8,
+          "ida": -0.5,
+          "ian": 0.8,
+          "ipp": 0.9,
+          "ips": 0.9,
+          "ipv": -0.5,
+          "pedra": "Quartzo",
+          "ponto_virada": "Nao",
+          "ieg_anterior": 0.7,
+          "ida_anterior": -0.4
+        },
+        "caracteristicas": {
+          "IEG": "ALTO (0.8) - Bom desempenho escolar",
+          "IAN": "ALTO (0.8) - Afinidade com numeros",
+          "IPP": "MUITO ALTO (0.9) - Participa presencialmente",
+          "IPS": "MUITO ALTO (0.9) - Participa socialmente",
+          "note": "Combinacao classica de risco baixo"
+        },
+        "resposta_esperada": {
+          "status": "OK",
+          "risk_probability": "~0.005 (0.5%)",
+          "risk_classification": "Baixo",
+          "prediction": 0,
+          "message": "Aluno com risco baixo de evasao"
+        },
+        "resultado_obtido": {
+          "status": "OK",
+          "risk_probability": 0.005,
+          "risk_classification": "Baixo",
+          "prediction": 0,
+          "message": "Aluno com risco baixo de evasao"
+        },
+        "validacao": "✅ PASSOU"
+      },
+      "teste_3_risco_medio": {
+        "descricao": "Aluno com MEDIO risco de evasao (50% probabilidade)",
+        "metodo": "POST",
+        "endpoint": "/predict",
+        "json_enviado": {
+          "idade": 20,
+          "fase": "EM",
+          "ieg": 0.2,
+          "ida": 0.0,
+          "ian": 0.0,
+          "ipp": 0.2,
+          "ips": 0.0,
+          "ipv": 0.5,
+          "pedra": "Topazio",
+          "ponto_virada": "Sim",
+          "ieg_anterior": 0.1,
+          "ida_anterior": -0.1
+        },
+        "caracteristicas": {
+          "IEG": "BAIXO (0.2) - Desempenho abaixo da media",
+          "IAN": "NEUTRO (0.0) - Afinidade media com numeros",
+          "IPP": "BAIXO (0.2) - Participa pouco presencialmente",
+          "note": "Combinacao intermediaria"
+        },
+        "resposta_esperada": {
+          "status": "OK",
+          "risk_probability": "~0.40-0.70 (40-70%)",
+          "risk_classification": "Medio ou Alto (dependendo de limite)",
+          "prediction": 0 ou 1,
+          "message": "Aluno com risco medio/alto de evasao"
+        },
+        "nota": "Use este JSON para testar o boundary entre Baixo e Medio"
+      }
+    },
+    "campos_entrada": {
+      "idade": {
+        "tipo": "float",
+        "descricao": "Idade do aluno (em anos)",
+        "exemplo": 18,
+        "normalizacao": "Aplicada (StandardScaler)"
+      },
+      "fase": {
+        "tipo": "string",
+        "descricao": "Fase escolar (EF, EM, etc)",
+        "exemplo": "EF",
+        "normalizacao": "Aplicada (OneHotEncoder)"
+      },
+      "ieg": {
+        "tipo": "float",
+        "descricao": "Indice de Engajamento Escolar (-1 a 1)",
+        "exemplo": 0.5,
+        "normalizacao": "Aplicada (StandardScaler)"
+      },
+      "ida": {
+        "tipo": "float",
+        "descricao": "Indice de Dados Abertos (-1 a 1)",
+        "exemplo": -0.3,
+        "normalizacao": "Aplicada (StandardScaler)"
+      },
+      "ian": {
+        "tipo": "float",
+        "descricao": "Indice de Afinidade Numerica (-1 a 1)",
+        "exemplo": 0.8,
+        "normalizacao": "Aplicada (StandardScaler)"
+      },
+      "ipp": {
+        "tipo": "float",
+        "descricao": "Indice de Participacao Presencial (-1 a 1)",
+        "exemplo": 0.9,
+        "normalizacao": "Aplicada (StandardScaler)"
+      },
+      "ips": {
+        "tipo": "float",
+        "descricao": "Indice de Participacao Social (-1 a 1)",
+        "exemplo": 0.6,
+        "normalizacao": "Aplicada (StandardScaler)"
+      },
+      "ipv": {
+        "tipo": "float",
+        "descricao": "Indice de Pontos Vermelhos (0 a 2)",
+        "exemplo": 1.2,
+        "normalizacao": "Aplicada (StandardScaler)"
+      },
+      "pedra": {
+        "tipo": "string",
+        "descricao": "Classificacao Pedra (Ametista, Topazio, Agata, Quartzo)",
+        "exemplo": "Ametista",
+        "normalizacao": "Aplicada (OneHotEncoder)"
+      },
+      "ponto_virada": {
+        "tipo": "string",
+        "descricao": "Ponto de virada atingido (Sim/Nao)",
+        "exemplo": "Sim",
+        "normalizacao": "Mapeado para 1/0"
+      },
+      "ieg_anterior": {
+        "tipo": "float",
+        "descricao": "IEG anterior (opcional)",
+        "exemplo": 0.4,
+        "obrigatorio": false
+      },
+      "ida_anterior": {
+        "tipo": "float",
+        "descricao": "IDA anterior (opcional)",
+        "exemplo": -0.2,
+        "obrigatorio": false
+      }
+    },
+    "campos_saida": {
+      "status": {
+        "tipo": "string",
+        "exemplos": ["OK", "ERROR"]
+      },
+      "risk_probability": {
+        "tipo": "float",
+        "faixa": "0.0 - 1.0",
+        "descricao": "Probabilidade de evasao (0-100%)"
+      },
+      "risk_classification": {
+        "tipo": "string",
+        "valores": ["Baixo", "Medio", "Alto"],
+        "criterio": {
+          "Alto": "probabilidade >= 0.7 (70%)",
+          "Medio": "0.4 <= probabilidade < 0.7 (40-70%)",
+          "Baixo": "probabilidade < 0.4 (< 40%)"
+        }
+      },
+      "prediction": {
+        "tipo": "integer",
+        "valores": {
+          "0": "Aluno nao vai evadir",
+          "1": "Aluno vai evadir"
+        }
+      },
+      "message": {
+        "tipo": "string",
+        "descricao": "Mensagem amigavel do resultado"
+      }
+    },
+    "normalizacao_info": {
+      "metodo": "StandardScaler + OneHotEncoder",
+      "arquivo": "app/model/preprocessor.pkl",
+      "features_numericas": 27,
+      "features_categoricas": 35,
+      "garantias": "Consistencia entre treino e predicao"
+    },
+    "como_usar": {
+      "curl": "curl -X POST http://127.0.0.1:8002/predict -H 'Content-Type: application/json' -d @alto_risco.json",
+      "python": "requests.post('http://127.0.0.1:8002/predict', json=data)",
+      "javascript": "fetch('http://127.0.0.1:8002/predict', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)})"
+    },
+    "erros_comuns": {
+      "erro_1": {
+        "mensagem": "Modelo nao carregado",
+        "codigo": 503,
+        "solucao": "Reinicie a API"
+      },
+      "erro_2": {
+        "mensagem": "Campo obrigatorio ausente",
+        "codigo": 422,
+        "solucao": "Verifique se todos os campos requeridos foram enviados"
+      },
+      "erro_3": {
+        "mensagem": "Tipo de dado incorreto",
+        "codigo": 422,
+        "solucao": "Verifique tipos de dados (float, string, etc)"
+      }
+    },
+    "endpoints_disponiveis": {
+      "GET /": "Frontend HTML",
+      "GET /health": "Status da API",
+      "GET /info": "Informacoes do modelo",
+      "POST /predict": "Fazer predicao",
+      "GET /docs": "Documentacao Swagger"
+    },
+    "status_atual": {
+      "api": "ONLINE",
+      "modelo": "CARREGADO ✅",
+      "preprocessor": "CARREGADO ✅",
+      "normalizacao": "ATIVA ✅",
+      "accuracy": "99.64%",
+      "f1_score": "0.8994"
+    }
+  }
+}
